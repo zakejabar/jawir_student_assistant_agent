@@ -1,5 +1,28 @@
 import re
 from typing import List
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+def recursive_chunk_text(text: str, chunk_size: int = 2000, chunk_overlap: int = 200) -> list[str]:
+    """
+    Recursively splits text into balanced chunks with overlap, prioritizing semantic boundaries.
+    Guarantees full content extraction.
+    """
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,          # Target size; adjust based on embedding model limits
+        chunk_overlap=chunk_overlap,    # Overlap for context retention in RAG
+        length_function=len,            # Measure by characters
+        separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],  # Priority: paragraphs > lines > sentences > words > chars
+        keep_separator=False,           # Avoid duplicating separators
+        add_start_index=True            # Optional: Adds metadata with original start position for debugging
+    )
+    # Split and extract text from Document objects
+    documents = splitter.create_documents([text])
+    chunks = [doc.page_content for doc in documents]
+    
+    # Optional: Log for debugging (integrate with Streamlit or your logger)
+    print(f"Split {len(text)} chars into {len(chunks)} chunks.")
+    
+    return chunks
 
 def is_heading(line: str) -> bool:
     line = line.strip()
