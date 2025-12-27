@@ -1,4 +1,4 @@
-# BinusBrain - Personal Knowledge Graph RAG System
+# StudyMate - Personal Knowledge Graph RAG System
 
 🧠 **A personal knowledge graph system for students to upload documents, build knowledge graphs, and query their materials using AI.**
 
@@ -52,7 +52,7 @@ The app will open at `http://localhost:8501`
 ### Upload Materials
 1. Go to "📁 Upload Materials" section
 2. Choose PDF, TXT, or image files
-3. Click "🚀 Process & Index"
+3. Click "Process & Index"
 4. Wait for knowledge graph extraction
 
 ### Ask Questions
