@@ -4,6 +4,8 @@ from typing import List, Dict, Any, Tuple
 from config.llm_config import llm_config
 from src.neo4j_client import neo4j_client
 from src.chunking.semantic_chunker import semantic_chunk
+from src.chunking.semantic_chunker import recursive_chunk_text
+
 
 
 class KnowledgeGraphExtractor:
@@ -26,7 +28,7 @@ Extract ONLY study-relevant knowledge. Ignore:
 
 PRIORITIZE:
 1. Core concepts and definitions
-2. Frameworks and models
+2. Frameworks and modelsx
 3. Components or steps
 4. Learning objectives
 5. Case studies and examples
@@ -84,7 +86,8 @@ Return ONLY valid JSON:
 
         except Exception as e:
             print("KG extraction error:", e)
-            print("Raw response:", response.content)
+            if 'response' in locals():
+                print("Raw response:", response.content)
             return [], []
 
     def _clean_json_response(self, content: str) -> str:
@@ -158,6 +161,8 @@ Return ONLY valid JSON:
         return cleaned
 
     def process_text_chunks(self, chunks: List[str], user_id: str) -> Dict[str, int]:
+        from src.query_engine import query_engine  # Import here to avoid circular import
+
         neo4j_client.create_user_if_not_exists(user_id)
 
         total_entities = 0
@@ -169,6 +174,10 @@ Return ONLY valid JSON:
                 continue
 
             print(f"Processing chunk {i+1}/{len(chunks)} ({len(chunk)} chars)")
+
+            # Store chunk for vector search
+            chunk_id = f"{user_id}_chunk_{i}"
+            query_engine.store_document_embeddings(user_id, chunk, chunk_id)
 
             entities, relationships = self.extract_entities_relationships(chunk, user_id)
 
@@ -188,7 +197,7 @@ Return ONLY valid JSON:
         }
 
     def extract_from_single_text(self, text: str, user_id: str) -> Dict[str, Any]:
-        chunks = semantic_chunk(text)
+        chunks = recursive_chunk_text(text, chunk_size=2000, chunk_overlap=200)
 
         if not chunks:
             return {

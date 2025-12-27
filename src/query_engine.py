@@ -151,13 +151,39 @@ class QueryEngine:
     def generate_answer(self, question: str, user_id: str):
 
         concept = self.extract_main_concept(question)
+        print(f"Extracted concept: '{concept}'")
+
         graph_context = self.get_graph_context(concept, user_id)
+        print(f"Graph context entities: {len(graph_context['entities'])}, relationships: {len(graph_context['relationships'])}")
 
         if not graph_context["entities"]:
-            return {
-                "answer": "I could not find this topic in your uploaded materials.",
-                "success": False
-            }
+            # Try vector search as fallback
+            vector_results = self.vector_search(question, user_id, top_k=3)
+            print(f"Vector search results: {len(vector_results)}")
+
+            if vector_results:
+                # Use vector results directly
+                context_text = "\n".join([result["chunk"]["text"] for result in vector_results])
+                prompt = f"""
+                Answer the question based on the following context from the user's materials:
+
+                Context:
+                {context_text}
+
+                Question: {question}
+
+                Provide a helpful answer based only on the context provided.
+                """
+                response = self.llm.invoke(prompt)
+                return {
+                    "answer": response.content,
+                    "success": True
+                }
+            else:
+                return {
+                    "answer": "I could not find this topic in your uploaded materials.",
+                    "success": False
+                }
 
         vector_results = self.vector_search(concept, user_id)
 
