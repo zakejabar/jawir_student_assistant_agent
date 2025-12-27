@@ -103,7 +103,7 @@ def check_dependencies():
 
 def render_header():
     """Render the application header"""
-    st.title("🧠 mamatbinbudi")
+    st.title("🧠 StudyMate")
     st.markdown("### Personal Knowledge Graph RAG System")
     st.markdown("---")
     
