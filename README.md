@@ -27,7 +27,7 @@ neo4j start
 
 ```bash
 # Go to your project folder
-cd binusbrain
+cd student-rag
 
 # Copy the example environment file
 cp .env.example .env
