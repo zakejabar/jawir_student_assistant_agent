@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 
 # Import our custom modules
-from src.agent import agent as studymate_agent
+from src.agent_interface import agent as studymate_agent
 from src.graph_viz import graph_visualizer
 from config.neo4j_config import neo4j_config
 from config.llm_config import llm_config

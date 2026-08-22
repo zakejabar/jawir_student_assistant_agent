@@ -1,248 +1,99 @@
-# StudyMate - Personal Knowledge Graph RAG System
+# StudyMate
 
-🧠 **Upload your study materials, let AI build a knowledge graph, then ask questions about everything you've learned.**
+Upload study materials, let an LLM build a knowledge graph from them in Neo4j, then ask questions answered from your own documents.
 
-## What does this do?
+## What problem it solves
 
-- **Upload anything**: PDFs, text files, even screenshots - we'll extract the text automatically
-- **Builds a knowledge graph**: The AI finds entities and relationships in your documents and connects them
-- **Smart search**: Ask questions and get answers from across all your materials
-- **See the connections**: Visualize how everything in your notes relates to each other
-- **Your stuff stays yours**: Each user has their own private graph
-
-## Getting Started
-
-### What you need first
-
-```bash
-# Start Neo4j (this is your graph database)
-neo4j start
-# Username and password are both "neo4j" by default
-
-# Get an OpenRouter API key (they have a free tier)
-# Go to https://openrouter.ai and sign up
-```
-
-### Setting things up
-
-```bash
-# Go to your project folder
-cd student-rag
-
-# Copy the example environment file
-cp .env.example .env
-
-# Open .env and add your keys:
-OPENROUTER_API_KEY=your_api_key_here
-NEO4J_URI=neo4j://127.0.0.1:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=your_neo4j_password
-
-# Install everything
-pip install -r requirements.txt
-```
-
-### Run it
-
-```bash
-streamlit run app.py
-```
-
-Open your browser to `http://localhost:8501` and you're good to go.
-
-## How to use it
-
-### Adding your materials
-1. Click on "📁 Upload Materials"
-2. Pick your PDFs, text files, or screenshots
-3. Hit "Process & Index"
-4. Wait a bit while it builds the knowledge graph
-
-### Asking questions
-1. Go to "💬 Ask Questions About Your Materials"
-2. Type whatever you want to know
-3. Get answers pulled from everything you've uploaded
-
-### Checking out the graph
-1. Head to "🕸️ Knowledge Graph Visualization"
-2. Click "🎨 Visualize Graph"
-3. Play around with the interactive graph - you can see how everything connects
+Notes, slides, and PDFs pile up as disconnected files, and plain keyword search doesn't show how ideas relate. StudyMate extracts the concepts and relationships out of your materials into a per-user graph, so you can both **ask questions** and **see the connections** between topics. It's a prototype — a single-session Streamlit demo, not a hosted product.
 
 ## How it works
 
-### What we're using
-- **Frontend**: Streamlit (simple Python web UI)
-- **LLM**: OpenRouter (free Llama models)
-- **Graph Database**: Neo4j
-- **OCR**: EasyOCR (for reading screenshots)
-- **Vector Search**: Sentence Transformers
-- **Visualization**: PyVis
-- **Agent**: LangGraph (handles the workflow)
-
-### The basic flow
+The pipeline (real code path, not idealized):
 
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Streamlit UI  │────│  LangGraph Agent │────│   Neo4j Graph   │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│ Upload files +  │    │ AI extracts      │    │ Stores in your  │
-│ OCR if needed   │    │ entities & links │    │ personal graph  │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│ Breaks text     │    │ Searches both    │    │ Shows you the   │
-│ into chunks     │    │ vectors & graph  │    │ visual network  │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
+Streamlit UI (app.py)
+  -> StudyMateAgent facade (src/agent_interface.py)
+  -> LangGraph workflow (src/agent_runner.py): route -> {upload+extract | query | visualize}
+
+UPLOAD:  extract text  (PDF via PyMuPDF, PPTX via python-pptx, images via EasyOCR, txt decode)
+      -> chunk         (LangChain RecursiveCharacterTextSplitter, 2000 chars / 200 overlap)
+      -> extract       (LLM returns JSON entities + relationships, validated against fixed type lists)
+      -> store         (Neo4j, isolated per user via a dynamic label `User_<id>`)
+
+QUERY:   LLM names the main concept in the question
+      -> look up that concept's 1-hop neighborhood in the graph
+      -> if the graph has nothing, fall back to embedding search
+         (SentenceTransformers all-MiniLM-L6-v2 + cosine similarity)
+      -> LLM writes the answer from that context
 ```
 
-## Folder structure
+Retrieval is **graph-first, vector-fallback**. Each user's data is separated by a Neo4j label rather than a property filter.
 
-```
-binusbrain/
-├── app.py                 # Main app file
-├── requirements.txt       # Python packages
-├── .env.example          # Template for your settings
-├── config/
-│   ├── neo4j_config.py   # Neo4j setup
-│   └── llm_config.py     # OpenRouter setup
-└── src/
-    ├── agent.py          # LangGraph workflow
-    ├── upload_handler.py # Handles file uploads and OCR
-    ├── kg_extractor.py   # Extracts entities and relationships
-    ├── neo4j_client.py   # Talks to Neo4j
-    ├── query_engine.py   # Searches and answers questions
-    └── graph_viz.py      # Makes the visualization
-```
+## Quickstart
 
-## Cool things about this
+**Prerequisites:** Python 3.12, a running Neo4j instance, and an [OpenRouter API key](https://openrouter.ai/keys).
 
-### Lightweight knowledge graph
-We're not using those huge Microsoft GraphRAG pipelines. Instead:
-- **Simple LLM extraction**: LLM pulls out entities and relationships
-- **Straight to Neo4j**: No complicated indexing pipelines
-- **Separate graphs per user**: Your stuff doesn't mix with anyone else's
-- **Actually fast**: Takes 5-30 seconds per document instead of several minutes
-
-### Hybrid search
-- **Vector similarity**: Finds relevant chunks using embeddings
-- **Graph context**: Grabs related entities and their connections
-- **AI answers**: Combines everything to give you complete answers
-
-### Interactive visualization
-- **Live network graph**: Click and drag nodes around
-- **Smart sizing**: Bigger nodes = more connections
-- **Color coded**: Different colors for different entity types
-- **Stats**: See how many nodes, edges, and entity types you have
-
-## Settings
-
-### Your .env file should look like:
 ```bash
-OPENROUTER_API_KEY=your_api_key_here
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=your_neo4j_password
+# 1. Neo4j (example: Docker)
+docker run -d --name neo4j -p 7474:7474 -p 7687:7687 \
+  -e NEO4J_AUTH=neo4j/your_password neo4j:5
+
+# 2. Install
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt   # heavy: pulls in torch via easyocr + sentence-transformers
+
+# 3. Configure
+cp .env.example .env              # then edit .env:
+#   OPENROUTER_API_KEY=sk-or-...
+#   NEO4J_PASSWORD=your_password
+
+# 4. Run
+streamlit run app.py              # opens http://localhost:8501
 ```
 
-### Setting up Neo4j
-1. Download Neo4j Desktop (it's free)
-2. Create a new database - it'll give you default credentials
-3. Run `neo4j start`
-4. You can check it at `http://localhost:7474`
+## Example (real run)
 
-### Getting OpenRouter working
-1. Go to https://openrouter.ai and make an account
-2. Add $10 in credits (or stick with free tier)
-3. Grab your API key from the "Keys" section
-4. We're using `meta-llama/llama-3.1-8b-instruct` which is free
+**Input** — a plain-text lecture note on Integrated Marketing Communications (excerpt):
 
-## Testing stuff
+> The promotion mix is the set of tools a company uses to communicate customer value... The promotion mix has five main components: advertising, sales promotion, personal selling, public relations, and direct marketing.
 
-### Make sure everything's connected
-```python
-# Test Neo4j
-from config.neo4j_config import neo4j_config
-print(neo4j_config.test_connection())
+**After upload+extract** — 17 entities, 18 relationships written to the graph, including:
 
-# Test LLM
-from config.llm_config import llm_config
-success, response = llm_config.test_connection()
-print(f"LLM working: {success}")
-
-# Test uploads
-from src.upload_handler import upload_handler
-text, type = upload_handler.process_upload(file_data, filename, user_id)
+```
+Promotion Mix --has_component--> Advertising
+Promotion Mix --has_component--> Sales Promotion
+Promotion Mix --has_component--> Personal Selling
+Promotion Mix --has_component--> Public Relations
+Promotion Mix --has_component--> Direct Marketing
+Advertising   --example_of-->    Television Commercials
+Integrated Marketing Communications --defines--> Promotion Mix
 ```
 
-### Want to customize?
-- **Different LLM**: Edit `config/llm_config.py`
-- **Entity types**: Change in `src/kg_extractor.py`
-- **UI look**: Mess with the CSS in `app.py`
-- **Graph colors**: Update `src/graph_viz.py`
+**Question:** *"What are the components of the promotion mix?"*
 
-## When things break
+**Answer (verbatim, trimmed):**
 
-### Neo4j won't connect
-```bash
-# Check if it's running
-neo4j status
-neo4j start  # Start it up
-```
+> **Definition:** The promotion mix refers to the set of tools a company uses to communicate customer value and build customer relationships.
+> **Components / Tools:** Direct Marketing, Personal Selling, Public Relations, Sales Promotion, Advertising.
+> **Integration Levels:** Internal Integration, External Integration, Channel Integration...
+> **Example:** A company like Nike uses a well-coordinated promotion mix...
 
-### OpenRouter errors
-```bash
-# Make sure your key is set
-echo $OPENROUTER_API_KEY
-# Check your credits on the OpenRouter dashboard
-```
+The five components are correct and grounded in the document. Note the "Integration Levels" and "Nike" parts were **not** in the source — see Status.
 
-### Python import errors
-```bash
-# Reinstall everything
-pip install -r requirements.txt --force-reinstall
-```
+## Status
 
-### OCR taking forever
-- EasyOCR downloads big models the first time you use it
-- First OCR might take 30-60 seconds
-- After that it's much faster
+Works:
+- Text extraction for PDF, PPTX, TXT, and images (OCR).
+- LLM entity/relationship extraction into Neo4j with per-user isolation.
+- Graph-first + vector-fallback query, answered by the LLM.
+- PyVis graph visualization and JSON export.
 
-## Performance
+Known limitations (honest):
+- **Answers can hallucinate beyond the source.** The answer template forces six fixed sections (Definition/Objectives/Components/Integration Levels/Benefits/Example), so the model invents content to fill sections the document doesn't cover, despite a "use only the context" instruction. Retrieval is grounded; generation over-reaches.
+- **Vector search doesn't scale.** Chunk embeddings are stored in Neo4j but ignored at query time — every query re-embeds all of the user's chunks in memory. Fine for a demo, not for large corpora.
+- **Single-session demo.** User identity is an auto-generated timestamp; there's no real auth, and per-user Neo4j *labels* (rather than a property filter) are an unusual choice that won't scale to many users.
+- Some orphaned modules remain (`src/agent/intent_classifier.py`, `kg_retriever.py`).
 
-- **Processing uploads**: 5-30 seconds per document
-- **Answering questions**: 2-10 seconds
-- **Loading visualization**: Pretty much instant
-- **Storage**: About 1KB per entity, 500 bytes per relationship
+## Tech
 
-## Privacy stuff
-
-- **Isolated users**: Everyone gets their own graph namespace
-- **Local processing**: Most of the work happens on your machine
-- **No permanent storage**: We don't save your uploaded files
-- **Secure keys**: API keys stay in your environment variables
-
-## What's next
-
-Some ideas for later:
-- [ ] Proper user login system
-- [ ] Share graphs with classmates
-- [ ] Proper Knowledge graph accuracy
-- [ ] Better graph analytics
-- [ ] Support more languages for OCR
-- [ ] Real-time collaborative editing
-
-## Need help?
-
-If something's not working:
-1. Check the troubleshooting section above
-2. Make sure you installed everything
-3. Verify Neo4j and OpenRouter are configured right
-4. Look at the console logs - they usually tell you what's wrong
-
----
-
-**Made for students who want to actually understand and connect their study materials instead of just having a pile of PDFs they never look at again.**
+Python 3.12 · Streamlit · LangGraph · LangChain · OpenRouter (Llama 3.1 8B) · Neo4j · SentenceTransformers (all-MiniLM-L6-v2) · EasyOCR · PyMuPDF · python-pptx · PyVis · scikit-learn
